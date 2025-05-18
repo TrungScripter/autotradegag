@@ -1,0 +1,186 @@
+local player = game:GetService("Players").LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+local userInputService = game:GetService("UserInputService")
+
+local totalPoints = 0
+local giftedCount = 0
+local panelVisible = true
+local minimized = false
+local targetMoonlitPoints = 9999 -- default high target
+
+local rarityPoints = {
+	["Common"] = 1,
+	["Uncommon"] = 2,
+	["Rare"] = 3,
+	["Legendary"] = 4,
+	["Mythical"] = 5,
+	["Divine"] = 6,
+}
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "GiftTracker"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 300, 0, 450)
+frame.Position = UDim2.new(0, 20, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, -40, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "🍱 Gift Tracker"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local minimizeBtn = Instance.new("TextButton", frame)
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -35, 0, 0)
+minimizeBtn.Text = "-"
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 20
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local inputLabel = Instance.new("TextLabel", frame)
+inputLabel.Position = UDim2.new(0, 10, 0, 35)
+inputLabel.Size = UDim2.new(0, 140, 0, 25)
+inputLabel.BackgroundTransparency = 1
+inputLabel.Text = "Target Moonlit Points:"
+inputLabel.Font = Enum.Font.Gotham
+inputLabel.TextSize = 16
+inputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+
+local amountBox = Instance.new("TextBox", frame)
+amountBox.Position = UDim2.new(0, 160, 0, 35)
+amountBox.Size = UDim2.new(0, 60, 0, 25)
+amountBox.PlaceholderText = "e.g. 50"
+amountBox.Text = ""
+amountBox.Font = Enum.Font.Gotham
+amountBox.TextSize = 16
+amountBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+amountBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+amountBox.ClearTextOnFocus = false
+
+local totalLabel = Instance.new("TextLabel", frame)
+totalLabel.Position = UDim2.new(0, 10, 0, 65)
+totalLabel.Size = UDim2.new(1, -20, 0, 25)
+totalLabel.BackgroundTransparency = 1
+totalLabel.Text = "Fruits: 0 | Points: 0"
+totalLabel.Font = Enum.Font.Gotham
+totalLabel.TextSize = 16
+totalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+
+local scroll = Instance.new("ScrollingFrame", frame)
+scroll.Position = UDim2.new(0, 0, 0, 95)
+scroll.Size = UDim2.new(1, 0, 1, -95)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.ScrollBarThickness = 6
+scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+scroll.BorderSizePixel = 0
+
+local UIListLayout = Instance.new("UIListLayout", scroll)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 2)
+
+-- Minimize button
+minimizeBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	scroll.Visible = not minimized
+	totalLabel.Visible = not minimized
+	inputLabel.Visible = not minimized
+	amountBox.Visible = not minimized
+	minimizeBtn.Text = minimized and "+" or "-"
+end)
+
+-- Toggle GUI with H key
+userInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.H then
+		panelVisible = not panelVisible
+		gui.Enabled = panelVisible
+	end
+end)
+
+function getRarity(name)
+	name = name:lower()
+	if name:find("divine") or name:find("grape") or name:find("pepper") then return "Divine"
+	elseif name:find("apple") or name:find("durian") or name:find("pumpkin") or name:find("bamboo") 
+		or name:find("watermelon") or name:find("cranberry") then return "Legendary"
+	elseif name:find("coconut") or name:find("dragon") or name:find("mango") or name:find("cactus")
+		or name:find("eggplant") or name:find("moonglow") or name:find("passion") or name:find("lemon")
+		or name:find("banana") or name:find("blood banana") or name:find("pear") then return "Mythical"
+	elseif name:find("tomato") or name:find("corn") or name:find("daffodil") then return "Rare"
+	elseif name:find("blueberry") or name:find("orange tulip") then return "Uncommon"
+	elseif name:find("carrot") or name:find("strawberry") then return "Common"
+	else return "Common"
+	end
+end
+
+function getMutationBonus(name)
+	local m = 1
+	local b = 0
+	name = name:lower()
+	if name:find("bloodlit") then m = 1.5 end
+	if name:find("golden") then b = b + 2 end
+	if name:find("rainbow") then b = b + 3 end
+	return m, b
+end
+
+amountBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		local input = tonumber(amountBox.Text)
+		if input and input > 0 then
+			targetMoonlitPoints = math.floor(input)
+			print("✅✅✅ Starting gift to reach", targetMoonlitPoints, "points")
+
+			for _, fruit in ipairs(backpack:GetChildren()) do
+				if totalPoints >= targetMoonlitPoints then break end
+
+				local name = fruit.Name:lower()
+				if name:find("moonlit") then
+					fruit.Parent = player.Character
+					wait(0.4)
+					game:GetService("ReplicatedStorage").RemoteEvent:FireServer("GiftFruit")
+
+					local rarity = getRarity(name)
+					local base = rarityPoints[rarity] or 0
+					local mult, extra = getMutationBonus(name)
+					local points = base * mult + extra
+
+					totalPoints += points
+					giftedCount += 1
+					totalLabel.Text = "Fruits: " .. giftedCount .. " | Points: " .. totalPoints
+
+					local entry = Instance.new("TextLabel", scroll)
+					entry.Size = UDim2.new(1, -10, 0, 20)
+					entry.BackgroundTransparency = 1
+					entry.Font = Enum.Font.Gotham
+					entry.TextSize = 14
+					entry.TextColor3 = Color3.fromRGB(255, 255, 255)
+					entry.Text = "[" .. rarity .. "] " .. fruit.Name .. " → +" .. points .. " pts"
+					entry.TextXAlignment = Enum.TextXAlignment.Left
+
+					scroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+					wait(1.5)
+				end
+			end
+
+			local done = Instance.new("TextLabel", scroll)
+			done.Size = UDim2.new(1, -10, 0, 24)
+			done.Text = "✅✅✅ Target points reached!"
+			done.Font = Enum.Font.GothamBold
+			done.TextSize = 16
+			done.TextColor3 = Color3.fromRGB(0, 255, 120)
+			done.BackgroundTransparency = 1
+			scroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+		end
+	end
+end)
