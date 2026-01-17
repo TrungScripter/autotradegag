@@ -21,7 +21,7 @@ local COOLDOWN = 0.2 -- Delay between items
 local SAFETY_CHECK = true -- Checks if character is alive
 
 -- Auto Reset Configuration (3 times only)
-local AUTO_RESET_ENABLED = true -- Enable auto reset on join
+local AUTO_RESET_ENABLED = false -- Enable auto reset on join
 local AUTO_RESET_COUNT = 3 -- Reset exactly 3 times
 local AUTO_RESET_COOLDOWN = 0.5 -- Time between resets (2 seconds per reset)
 local isAutoResetting = false
