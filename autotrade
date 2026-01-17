@@ -27,7 +27,7 @@ local lastEquipCheck = 0
 
 -- Auto Trade Accept settings (SIMPLIFIED)
 local AUTO_TRADE_ENABLED = false
-local AUTO_TRADE_INTERVAL = 2 -- Check every 2 seconds
+local AUTO_TRADE_INTERVAL = 0.4 
 local lastTradeCheck = 0
 
 -- Item blacklist (items that cannot be gifted)
@@ -500,13 +500,13 @@ local function autoAcceptTrade()
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "🤝 Enter Pressed",
             Text = "Auto pressed Enter key",
-            Duration = 1.5,
+            Duration = 0.5,
             Icon = "rbxassetid://6726673526"
         })
     end)
     
     -- Reset status after delay
-    task.delay(1.5, function()
+    task.delay(0.5, function()
         if AUTO_TRADE_ENABLED then
             AutoTradeText.Text = "Auto Accept Trade: ACTIVE"
             AutoTradeText.TextColor3 = Color3.fromRGB(255, 200, 50)
