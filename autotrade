@@ -1,6 +1,6 @@
--- AUTO GIFTING SCRIPT v3.5 with GUI
--- Toggle: G | Emergency Stop: P
--- Removed: Anti-AFK movement system
+-- AUTO GIFTING SCRIPT v3.7 with GUI
+-- Toggle: G
+-- Auto Force Equip Bat: ON/OFF | Auto Accept Trade: ON/OFF
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -20,24 +20,22 @@ local HOLD_E = 0.25  -- How long to hold E
 local COOLDOWN = 0.2 -- Delay between items
 local SAFETY_CHECK = true -- Checks if character is alive
 
--- Auto Reset Configuration (3 times only)
-local AUTO_RESET_ENABLED = false -- Enable auto reset on join
-local AUTO_RESET_COUNT = 3 -- Reset exactly 3 times
-local AUTO_RESET_COOLDOWN = 0.5 -- Time between resets (2 seconds per reset)
-local isAutoResetting = false
-local resetCount = 0
-local maxResetCount = 3
+-- Auto Equip Bat settings
+local AUTO_EQUIP_BAT_ENABLED = false
+local AUTO_EQUIP_INTERVAL = 5 -- Check every 5 seconds
+local lastEquipCheck = 0
+
+-- Auto Trade Accept settings (SIMPLIFIED)
+local AUTO_TRADE_ENABLED = false
+local AUTO_TRADE_INTERVAL = 2 -- Check every 2 seconds
+local lastTradeCheck = 0
 
 -- Item blacklist (items that cannot be gifted)
 local BLACKLIST = {
-    "Bat", "bat", "BAT",
     "Sword", "sword", "Weapon", "weapon",
     "Admin", "admin", "Tool",
     -- Add more as needed
 }
-
--- Emergency stop flag
-local EMERGENCY_STOP = false
 
 -- Server hopping variables
 local ServerHopCooldown = false
@@ -73,7 +71,7 @@ UICorner.Parent = MainFrame
 -- Title
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
-Title.Text = "🎁 AUTO GIFT SCRIPT v3.5"
+Title.Text = "🎁Gift 3.6 Rau Ma"
 Title.Size = UDim2.new(1, 0, 0, 50)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
@@ -123,27 +121,91 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 8)
 ToggleCorner.Parent = ToggleButton
 
--- Emergency Button
-local EmergencyButton = Instance.new("TextButton")
-EmergencyButton.Name = "EmergencyButton"
-EmergencyButton.Text = "EMERGENCY STOP (P)"
-EmergencyButton.Size = UDim2.new(0.9, 0, 0, 45)
-EmergencyButton.Position = UDim2.new(0.05, 0, 0, 165)
-EmergencyButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
-EmergencyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-EmergencyButton.Font = Enum.Font.GothamBold
-EmergencyButton.TextSize = 16
-EmergencyButton.Parent = MainFrame
+-- Auto Equip Bat Section
+local AutoEquipFrame = Instance.new("Frame")
+AutoEquipFrame.Name = "AutoEquipFrame"
+AutoEquipFrame.Size = UDim2.new(0.9, 0, 0, 60)
+AutoEquipFrame.Position = UDim2.new(0.05, 0, 0, 165)
+AutoEquipFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AutoEquipFrame.BorderSizePixel = 0
+AutoEquipFrame.Parent = MainFrame
 
-local EmergencyCorner = Instance.new("UICorner")
-EmergencyCorner.CornerRadius = UDim.new(0, 8)
-EmergencyCorner.Parent = EmergencyButton
+local AutoEquipCorner = Instance.new("UICorner")
+AutoEquipCorner.CornerRadius = UDim.new(0, 8)
+AutoEquipCorner.Parent = AutoEquipFrame
+
+local AutoEquipText = Instance.new("TextLabel")
+AutoEquipText.Name = "AutoEquipText"
+AutoEquipText.Text = "Auto Equip Bat: OFF"
+AutoEquipText.Size = UDim2.new(0.6, 0, 1, 0)
+AutoEquipText.Position = UDim2.new(0.05, 0, 0, 0)
+AutoEquipText.BackgroundTransparency = 1
+AutoEquipText.TextColor3 = Color3.fromRGB(255, 100, 100)
+AutoEquipText.Font = Enum.Font.Gotham
+AutoEquipText.TextSize = 12
+AutoEquipText.TextXAlignment = Enum.TextXAlignment.Left
+AutoEquipText.Parent = AutoEquipFrame
+
+local AutoEquipToggle = Instance.new("TextButton")
+AutoEquipToggle.Name = "AutoEquipToggle"
+AutoEquipToggle.Text = "OFF"
+AutoEquipToggle.Size = UDim2.new(0.25, 0, 0.6, 0)
+AutoEquipToggle.Position = UDim2.new(0.7, 0, 0.2, 0)
+AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+AutoEquipToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoEquipToggle.Font = Enum.Font.GothamBold
+AutoEquipToggle.TextSize = 12
+AutoEquipToggle.Parent = AutoEquipFrame
+
+local AutoEquipToggleCorner = Instance.new("UICorner")
+AutoEquipToggleCorner.CornerRadius = UDim.new(0, 6)
+AutoEquipToggleCorner.Parent = AutoEquipToggle
+
+-- Auto Accept Trade Section
+local AutoTradeFrame = Instance.new("Frame")
+AutoTradeFrame.Name = "AutoTradeFrame"
+AutoTradeFrame.Size = UDim2.new(0.9, 0, 0, 60)
+AutoTradeFrame.Position = UDim2.new(0.05, 0, 0, 235)
+AutoTradeFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AutoTradeFrame.BorderSizePixel = 0
+AutoTradeFrame.Parent = MainFrame
+
+local AutoTradeCorner = Instance.new("UICorner")
+AutoTradeCorner.CornerRadius = UDim.new(0, 8)
+AutoTradeCorner.Parent = AutoTradeFrame
+
+local AutoTradeText = Instance.new("TextLabel")
+AutoTradeText.Name = "AutoTradeText"
+AutoTradeText.Text = "Auto Accept Trade: OFF"
+AutoTradeText.Size = UDim2.new(0.6, 0, 1, 0)
+AutoTradeText.Position = UDim2.new(0.05, 0, 0, 0)
+AutoTradeText.BackgroundTransparency = 1
+AutoTradeText.TextColor3 = Color3.fromRGB(255, 100, 100)
+AutoTradeText.Font = Enum.Font.Gotham
+AutoTradeText.TextSize = 12
+AutoTradeText.TextXAlignment = Enum.TextXAlignment.Left
+AutoTradeText.Parent = AutoTradeFrame
+
+local AutoTradeToggle = Instance.new("TextButton")
+AutoTradeToggle.Name = "AutoTradeToggle"
+AutoTradeToggle.Text = "OFF"
+AutoTradeToggle.Size = UDim2.new(0.25, 0, 0.6, 0)
+AutoTradeToggle.Position = UDim2.new(0.7, 0, 0.2, 0)
+AutoTradeToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+AutoTradeToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoTradeToggle.Font = Enum.Font.GothamBold
+AutoTradeToggle.TextSize = 12
+AutoTradeToggle.Parent = AutoTradeFrame
+
+local AutoTradeToggleCorner = Instance.new("UICorner")
+AutoTradeToggleCorner.CornerRadius = UDim.new(0, 6)
+AutoTradeToggleCorner.Parent = AutoTradeToggle
 
 -- Progress Section
 local ProgressFrame = Instance.new("Frame")
 ProgressFrame.Name = "ProgressFrame"
 ProgressFrame.Size = UDim2.new(0.9, 0, 0, 80)
-ProgressFrame.Position = UDim2.new(0.05, 0, 0, 220)
+ProgressFrame.Position = UDim2.new(0.05, 0, 0, 305)
 ProgressFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 ProgressFrame.BorderSizePixel = 0
 ProgressFrame.Parent = MainFrame
@@ -174,51 +236,11 @@ CurrentItemText.Font = Enum.Font.Gotham
 CurrentItemText.TextSize = 12
 CurrentItemText.Parent = ProgressFrame
 
--- Auto Reset Section (shows count)
-local AutoResetFrame = Instance.new("Frame")
-AutoResetFrame.Name = "AutoResetFrame"
-AutoResetFrame.Size = UDim2.new(0.9, 0, 0, 60)
-AutoResetFrame.Position = UDim2.new(0.05, 0, 0, 310)
-AutoResetFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
-AutoResetFrame.BorderSizePixel = 0
-AutoResetFrame.Parent = MainFrame
-
-local AutoResetCorner = Instance.new("UICorner")
-AutoResetCorner.CornerRadius = UDim.new(0, 8)
-AutoResetCorner.Parent = AutoResetFrame
-
-local AutoResetText = Instance.new("TextLabel")
-AutoResetText.Name = "AutoResetText"
-AutoResetText.Text = "Auto-Reset: READY (3x)"
-AutoResetText.Size = UDim2.new(0.6, 0, 1, 0)
-AutoResetText.Position = UDim2.new(0.05, 0, 0, 0)
-AutoResetText.BackgroundTransparency = 1
-AutoResetText.TextColor3 = Color3.fromRGB(100, 255, 100)
-AutoResetText.Font = Enum.Font.Gotham
-AutoResetText.TextSize = 12
-AutoResetText.TextXAlignment = Enum.TextXAlignment.Left
-AutoResetText.Parent = AutoResetFrame
-
-local AutoResetToggle = Instance.new("TextButton")
-AutoResetToggle.Name = "AutoResetToggle"
-AutoResetToggle.Text = "ON"
-AutoResetToggle.Size = UDim2.new(0.25, 0, 0.6, 0)
-AutoResetToggle.Position = UDim2.new(0.7, 0, 0.2, 0)
-AutoResetToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
-AutoResetToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-AutoResetToggle.Font = Enum.Font.GothamBold
-AutoResetToggle.TextSize = 12
-AutoResetToggle.Parent = AutoResetFrame
-
-local AutoResetToggleCorner = Instance.new("UICorner")
-AutoResetToggleCorner.CornerRadius = UDim.new(0, 6)
-AutoResetToggleCorner.Parent = AutoResetToggle
-
 -- Server Info Section
 local ServerInfoFrame = Instance.new("Frame")
 ServerInfoFrame.Name = "ServerInfoFrame"
 ServerInfoFrame.Size = UDim2.new(0.9, 0, 0, 70)
-ServerInfoFrame.Position = UDim2.new(0.05, 0, 0, 380)
+ServerInfoFrame.Position = UDim2.new(0.05, 0, 0, 395)
 ServerInfoFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 ServerInfoFrame.BorderSizePixel = 0
 ServerInfoFrame.Parent = MainFrame
@@ -243,7 +265,7 @@ VersionText.Parent = ServerInfoFrame
 -- Server Hop Button
 local ServerHopButton = Instance.new("TextButton")
 ServerHopButton.Name = "ServerHopButton"
-ServerHopButton.Text = "SERVER HOP"
+ServerHopButton.Text = "SERVER HOP (H)"
 ServerHopButton.Size = UDim2.new(0.8, 0, 0, 30)
 ServerHopButton.Position = UDim2.new(0.1, 0, 0.5, 5)
 ServerHopButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
@@ -260,7 +282,7 @@ ServerHopCorner.Parent = ServerHopButton
 local SettingsFrame = Instance.new("Frame")
 SettingsFrame.Name = "SettingsFrame"
 SettingsFrame.Size = UDim2.new(0.9, 0, 0, 80)
-SettingsFrame.Position = UDim2.new(0.05, 0, 0, 460)
+SettingsFrame.Position = UDim2.new(0.05, 0, 0, 475)
 SettingsFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 SettingsFrame.BorderSizePixel = 0
 SettingsFrame.Parent = MainFrame
@@ -378,11 +400,6 @@ local function updateProgress(current, total, itemName)
     CurrentItemText.Text = "Current: " .. (itemName or "None")
 end
 
-local function updateAutoResetStatus(text, color)
-    AutoResetText.Text = "Auto-Reset: " .. text
-    AutoResetText.TextColor3 = color
-end
-
 -- Check if item is blacklisted
 local function isBlacklisted(itemName)
     for _, blacklisted in ipairs(BLACKLIST) do
@@ -393,119 +410,151 @@ local function isBlacklisted(itemName)
     return false
 end
 
--- Auto Reset Functions (3 times only)
-local function safeResetCharacter()
-    if not player.Character then return false end
+-- Auto equip bat function
+local function autoEquipBat()
+    if not character or not character:FindFirstChild("Humanoid") then
+        return false
+    end
     
-    local success = pcall(function()
-        -- Method 1: Use Humanoid if available
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            -- Try multiple reset methods
-            pcall(function() humanoid.Health = 0 end)
-            pcall(function() humanoid:TakeDamage(1000) end)
-            pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Dead) end)
-            return true
+    -- Check if already has bat equipped
+    local hasBat = false
+    for _, item in ipairs(character:GetChildren()) do
+        if item:IsA("Tool") and item.Name:lower():find("bat") then
+            hasBat = true
+            break
         end
+    end
+    
+    if hasBat then
+        return false -- Already has bat
+    end
+    
+    -- Check backpack exists
+    if not backpack or not backpack:IsDescendantOf(game) then
+        backpack = player:WaitForChild("Backpack")
+    end
+    
+    -- Look for bats in backpack
+    local bats = {}
+    for _, item in ipairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local itemName = item.Name:lower()
+            if itemName:find("bat") then
+                table.insert(bats, item)
+            end
+        end
+    end
+    
+    if #bats > 0 then
+        -- Equip the first bat found
+        local bat = bats[1]
+        local success = pcall(function()
+            local humanoid = character.Humanoid
+            humanoid:EquipTool(bat)
+        end)
         
-        -- Method 2: Remove character parts to force reset
-        for _, v in pairs(player.Character:GetChildren()) do
-            if v:IsA("BasePart") then
-                v:Destroy()
-            end
-        end
-    end)
-    
-    return success
-end
-
-local function startAutoReset()
-    if not AUTO_RESET_ENABLED or isAutoResetting then return end
-    
-    isAutoResetting = true
-    resetCount = 0
-    maxResetCount = AUTO_RESET_COUNT
-    
-    warn("[AUTO-RESET] Starting auto-reset for " .. maxResetCount .. " times...")
-    updateAutoResetStatus("ACTIVE (0/" .. maxResetCount .. ")", Color3.fromRGB(255, 200, 50))
-    
-    -- Main auto-reset loop (3 times only)
-    task.spawn(function()
-        while isAutoResetting and resetCount < maxResetCount do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                if safeResetCharacter() then
-                    resetCount = resetCount + 1
-                    
-                    -- Update GUI
-                    updateAutoResetStatus("ACTIVE (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(255, 200, 50))
-                    
-                    -- Log progress
-                    warn("[AUTO-RESET] Reset #" .. resetCount .. " of " .. maxResetCount)
-                    
-                    -- If we've reached the target count, stop
-                    if resetCount >= maxResetCount then
-                        isAutoResetting = false
-                        warn("[AUTO-RESET] Completed! Total resets: " .. resetCount)
-                        updateAutoResetStatus("COMPLETE (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(100, 255, 100))
-                        break
-                    end
-                else
-                    warn("[AUTO-RESET] Failed to reset character")
-                end
-            else
-                warn("[AUTO-RESET] Waiting for character...")
-            end
+        if success then
+            warn("[AUTO EQUIP] Equipped: " .. bat.Name)
             
-            -- Wait between resets
-            task.wait(AUTO_RESET_COOLDOWN)
+            -- Update GUI status
+            AutoEquipText.Text = "Auto Equip Bat: EQUIPPED"
+            AutoEquipText.TextColor3 = Color3.fromRGB(100, 255, 100)
+            
+            -- Show brief notification
+            task.spawn(function()
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "⚾ Bat Auto-Equipped",
+                    Text = "Equipped " .. bat.Name,
+                    Duration = 2,
+                    Icon = "rbxassetid://6726673526"
+                })
+            end)
+            return true
+        else
+            warn("[AUTO EQUIP] Failed to equip bat")
+            return false
         end
-        
-        -- Clean up if loop ended prematurely
-        if isAutoResetting then
-            isAutoResetting = false
-            updateAutoResetStatus("READY (" .. maxResetCount .. "x)", Color3.fromRGB(100, 255, 100))
-        end
-    end)
-    
-    -- Safety timeout (in case something goes wrong)
-    task.delay(15, function()
-        if isAutoResetting then
-            isAutoResetting = false
-            warn("[AUTO-RESET] Safety timeout triggered")
-            updateAutoResetStatus("READY (" .. maxResetCount .. "x)", Color3.fromRGB(100, 255, 100))
-        end
-    end)
-end
-
-local function stopAutoReset()
-    if isAutoResetting then
-        isAutoResetting = false
-        warn("[AUTO-RESET] Stopped manually. Completed resets: " .. resetCount .. "/" .. maxResetCount)
-        updateAutoResetStatus("STOPPED (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(255, 100, 100))
+    else
+        -- No bats found
+        AutoEquipText.Text = "Auto Equip Bat: NO BAT"
+        AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        return false
     end
 end
 
-local function toggleAutoReset()
-    AUTO_RESET_ENABLED = not AUTO_RESET_ENABLED
+-- SIMPLIFIED Auto accept trade function - ONLY ENTER
+local function autoAcceptTrade()
+    -- Simply press Enter key
+    VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.05)
+    VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
     
-    if AUTO_RESET_ENABLED then
-        AutoResetToggle.Text = "ON"
-        AutoResetToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
-        updateAutoResetStatus("READY (" .. AUTO_RESET_COUNT .. "x)", Color3.fromRGB(100, 255, 100))
-        warn("[AUTO-RESET] Feature enabled (will reset " .. AUTO_RESET_COUNT .. " times)")
+    -- Update GUI status
+    AutoTradeText.Text = "Auto Accept Trade: PRESSED"
+    AutoTradeText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    
+    warn("[AUTO TRADE] Enter key pressed")
+    
+    -- Show brief notification
+    task.spawn(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "🤝 Enter Pressed",
+            Text = "Auto pressed Enter key",
+            Duration = 1.5,
+            Icon = "rbxassetid://6726673526"
+        })
+    end)
+    
+    -- Reset status after delay
+    task.delay(1.5, function()
+        if AUTO_TRADE_ENABLED then
+            AutoTradeText.Text = "Auto Accept Trade: ACTIVE"
+            AutoTradeText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        end
+    end)
+end
+
+-- Toggle auto equip bat
+local function toggleAutoEquipBat()
+    AUTO_EQUIP_BAT_ENABLED = not AUTO_EQUIP_BAT_ENABLED
+    
+    if AUTO_EQUIP_BAT_ENABLED then
+        AutoEquipToggle.Text = "ON"
+        AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+        AutoEquipText.Text = "Auto Equip Bat: ACTIVE"
+        AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        warn("[AUTO EQUIP] Auto equip bat enabled")
     else
-        AutoResetToggle.Text = "OFF"
-        AutoResetToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
-        updateAutoResetStatus("DISABLED", Color3.fromRGB(255, 100, 100))
-        stopAutoReset()
-        warn("[AUTO-RESET] Feature disabled")
+        AutoEquipToggle.Text = "OFF"
+        AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        AutoEquipText.Text = "Auto Equip Bat: OFF"
+        AutoEquipText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warn("[AUTO EQUIP] Auto equip bat disabled")
+    end
+end
+
+-- Toggle auto trade
+local function toggleAutoTrade()
+    AUTO_TRADE_ENABLED = not AUTO_TRADE_ENABLED
+    
+    if AUTO_TRADE_ENABLED then
+        AutoTradeToggle.Text = "ON"
+        AutoTradeToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+        AutoTradeText.Text = "Auto Accept Trade: ACTIVE"
+        AutoTradeText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        warn("[AUTO TRADE] Auto accept trade enabled (Enter key only)")
+    else
+        AutoTradeToggle.Text = "OFF"
+        AutoTradeToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        AutoTradeText.Text = "Auto Accept Trade: OFF"
+        AutoTradeText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warn("[AUTO TRADE] Auto accept trade disabled")
     end
 end
 
 -- Button Functions
 ToggleButton.MouseButton1Click:Connect(function()
     ENABLED = not ENABLED
-    EMERGENCY_STOP = false
     
     if ENABLED then
         updateStatus("RUNNING", Color3.fromRGB(100, 255, 100))
@@ -520,17 +569,12 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
-EmergencyButton.MouseButton1Click:Connect(function()
-    EMERGENCY_STOP = true
-    ENABLED = false
-    updateStatus("STOPPED", Color3.fromRGB(255, 100, 100))
-    ToggleButton.Text = "START (G)"
-    ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
-    warn("[AUTO-GIFT] Emergency stopped")
+AutoEquipToggle.MouseButton1Click:Connect(function()
+    toggleAutoEquipBat()
 end)
 
-AutoResetToggle.MouseButton1Click:Connect(function()
-    toggleAutoReset()
+AutoTradeToggle.MouseButton1Click:Connect(function()
+    toggleAutoTrade()
 end)
 
 ServerHopButton.MouseButton1Click:Connect(function()
@@ -571,21 +615,54 @@ UIS.InputBegan:Connect(function(input, gp)
         ToggleButton:Activate()
     end
     
-    if input.KeyCode == Enum.KeyCode.P then
-        EmergencyButton:Activate()
-    end
-    
     if input.KeyCode == Enum.KeyCode.H then
         ServerHopButton:Activate()
     end
     
-    if input.KeyCode == Enum.KeyCode.R then
-        AutoResetToggle:Activate()
+    if input.KeyCode == Enum.KeyCode.F then
+        AutoEquipToggle:Activate()
+        warn("[AUTO EQUIP] F key pressed - Toggled auto equip bat")
+    end
+    
+    if input.KeyCode == Enum.KeyCode.T then
+        AutoTradeToggle:Activate()
+        warn("[AUTO TRADE] T key pressed - Toggled auto accept trade")
     end
 end)
 
--- REMOVED: Anti-AFK system (character movement)
--- No longer sends W/S key events to prevent moving
+-- Auto Equip Bat Loop
+task.spawn(function()
+    while true do
+        if AUTO_EQUIP_BAT_ENABLED then
+            local currentTime = tick()
+            if currentTime - lastEquipCheck >= AUTO_EQUIP_INTERVAL then
+                lastEquipCheck = currentTime
+                
+                -- Check if character is valid
+                if character and character:FindFirstChild("Humanoid") then
+                    autoEquipBat()
+                end
+            end
+        end
+        task.wait(1) -- Check every second
+    end
+end)
+
+-- SIMPLIFIED Auto Trade Accept Loop
+task.spawn(function()
+    while true do
+        if AUTO_TRADE_ENABLED then
+            local currentTime = tick()
+            if currentTime - lastTradeCheck >= AUTO_TRADE_INTERVAL then
+                lastTradeCheck = currentTime
+                
+                -- Execute SIMPLIFIED trade accept (just Enter)
+                autoAcceptTrade()
+            end
+        end
+        task.wait(0.5) -- Check more frequently
+    end
+end)
 
 -- Server functions
 local function checkGameVersion()
@@ -695,14 +772,7 @@ task.spawn(function()
     local totalGifted = 0
     
     while true do
-        if ENABLED and not EMERGENCY_STOP then
-            -- Don't gift while auto-resetting
-            if isAutoResetting then
-                updateProgress(0, 0, "Waiting for auto-reset...")
-                task.wait(1)
-                continue
-            end
-            
+        if ENABLED then
             character = player.Character or character
             
             if SAFETY_CHECK and not isCharacterValid() then
@@ -716,11 +786,14 @@ task.spawn(function()
                 backpack = player:WaitForChild("Backpack")
             end
             
-            -- Get giftable tools
+            -- Get giftable tools (exclude bats)
             local tools = {}
             for _, item in ipairs(backpack:GetChildren()) do
                 if item:IsA("Tool") and not isBlacklisted(item.Name) then
-                    table.insert(tools, item)
+                    -- Check if it's a bat
+                    if not item.Name:lower():find("bat") then
+                        table.insert(tools, item)
+                    end
                 end
             end
             
@@ -732,7 +805,7 @@ task.spawn(function()
                 warn("[AUTO-GIFT] Starting gift cycle with " .. #tools .. " items")
                 
                 for i, tool in ipairs(tools) do
-                    if not ENABLED or EMERGENCY_STOP then break end
+                    if not ENABLED then break end
                     
                     -- Check character validity before each gift
                     if SAFETY_CHECK and not isCharacterValid() then
@@ -771,18 +844,14 @@ task.spawn(function()
                     task.wait(COOLDOWN)
                 end
                 
-                if ENABLED and not EMERGENCY_STOP then
+                if ENABLED then
                     updateProgress(#tools, #tools, "Cycle Complete!")
                     warn("[AUTO-GIFT] Cycle complete. Total gifted: " .. totalGifted)
                     task.wait(1) -- Brief pause before next cycle
                 end
             end
         else
-            if isAutoResetting then
-                updateProgress(0, 0, "Auto-resetting...")
-            else
-                updateProgress(0, 0, "Idle")
-            end
+            updateProgress(0, 0, "Idle")
         end
         task.wait(0.5)
     end
@@ -793,18 +862,15 @@ player.CharacterAdded:Connect(function(newChar)
     character = newChar
     task.wait(1) -- Wait for character to fully load
     
-    -- Start auto-reset if enabled and not already resetting
-    if AUTO_RESET_ENABLED and not isAutoResetting then
-        task.wait(0.5) -- Small delay
-        startAutoReset()
-    end
-end)
-
--- Start auto-reset on script load
-task.spawn(function()
-    task.wait(2) -- Wait for everything to load
-    if AUTO_RESET_ENABLED and not isAutoResetting then
-        startAutoReset()
+    -- Reset auto equip status on character respawn
+    if AUTO_EQUIP_BAT_ENABLED then
+        AutoEquipText.Text = "Auto Equip Bat: CHECKING..."
+        AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        
+        -- Auto equip bat after character loads
+        task.delay(0.1, function()
+            autoEquipBat()
+        end)
     end
 end)
 
@@ -822,15 +888,16 @@ end)
 LastKnownVersion = CurrentPlaceVersion
 updateStatus("OFF", Color3.fromRGB(255, 100, 100))
 updateProgress(0, 0, "Ready")
-updateAutoResetStatus("READY (" .. AUTO_RESET_COUNT .. "x)", Color3.fromRGB(100, 255, 100))
 checkGameVersion()
 getServerInfo()
 
 warn("==========================================")
 warn("[AUTO GIFT] Script loaded successfully!")
-warn("[CONTROLS] G = Toggle Gift | P = Emergency Stop")
-warn("[CONTROLS] H = Server Hop | R = Toggle Auto-Reset")
-warn("[AUTO-RESET] Status: " .. (AUTO_RESET_ENABLED and "ENABLED (3 times)" or "DISABLED"))
+warn("[CONTROLS] G = Toggle Gift")
+warn("[CONTROLS] F = Toggle Auto Equip Bat | T = Toggle Auto Accept Trade")
+warn("[CONTROLS] H = Server Hop")
+warn("[AUTO EQUIP] Will auto-equip bat every " .. AUTO_EQUIP_INTERVAL .. " seconds")
+warn("[AUTO TRADE] Will auto-press Enter every " .. AUTO_TRADE_INTERVAL .. " seconds")
+warn("[SIMPLIFIED] Auto trade now only presses Enter key")
 warn("[VERSION] Game Version: " .. CurrentPlaceVersion)
-warn("[NOTE] Anti-AFK movement system has been removed")
 warn("==========================================")
