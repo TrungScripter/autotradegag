@@ -1,186 +1,836 @@
-local player = game:GetService("Players").LocalPlayer
+-- AUTO GIFTING SCRIPT v3.5 with GUI
+-- Toggle: G | Emergency Stop: P
+-- Removed: Anti-AFK movement system
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local VIM = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
 local backpack = player:WaitForChild("Backpack")
-local userInputService = game:GetService("UserInputService")
 
-local totalPoints = 0
-local giftedCount = 0
-local panelVisible = true
-local minimized = false
-local targetMoonlitPoints = 9999 -- default high target
+-- Configuration
+local ENABLED = false
+local HOLD_E = 0.25  -- How long to hold E
+local COOLDOWN = 0.2 -- Delay between items
+local SAFETY_CHECK = true -- Checks if character is alive
 
-local rarityPoints = {
-	["Common"] = 1,
-	["Uncommon"] = 2,
-	["Rare"] = 3,
-	["Legendary"] = 4,
-	["Mythical"] = 5,
-	["Divine"] = 6,
+-- Auto Reset Configuration (3 times only)
+local AUTO_RESET_ENABLED = true -- Enable auto reset on join
+local AUTO_RESET_COUNT = 3 -- Reset exactly 3 times
+local AUTO_RESET_COOLDOWN = 0.5 -- Time between resets (2 seconds per reset)
+local isAutoResetting = false
+local resetCount = 0
+local maxResetCount = 3
+
+-- Item blacklist (items that cannot be gifted)
+local BLACKLIST = {
+    "Bat", "bat", "BAT",
+    "Sword", "sword", "Weapon", "weapon",
+    "Admin", "admin", "Tool",
+    -- Add more as needed
 }
 
--- GUI Setup
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "GiftTracker"
-gui.ResetOnSpawn = false
+-- Emergency stop flag
+local EMERGENCY_STOP = false
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 300, 0, 450)
-frame.Position = UDim2.new(0, 20, 0.3, 0)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+-- Server hopping variables
+local ServerHopCooldown = false
+local PlaceId = game.PlaceId
+local JobId = game.JobId
 
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -40, 0, 30)
-title.Position = UDim2.new(0, 10, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "🍱 Gift Tracker"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextXAlignment = Enum.TextXAlignment.Left
+-- Server version tracking
+local CurrentPlaceVersion = game.PlaceVersion
+local LastKnownVersion = nil
+local VersionCheckEnabled = true
 
-local minimizeBtn = Instance.new("TextButton", frame)
-minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-minimizeBtn.Position = UDim2.new(1, -35, 0, 0)
-minimizeBtn.Text = "-"
-minimizeBtn.Font = Enum.Font.GothamBold
-minimizeBtn.TextSize = 20
-minimizeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoGiftGUI"
+ScreenGui.Parent = game:GetService("CoreGui")
 
-local inputLabel = Instance.new("TextLabel", frame)
-inputLabel.Position = UDim2.new(0, 10, 0, 35)
-inputLabel.Size = UDim2.new(0, 140, 0, 25)
-inputLabel.BackgroundTransparency = 1
-inputLabel.Text = "Target Moonlit Points:"
-inputLabel.Font = Enum.Font.Gotham
-inputLabel.TextSize = 16
-inputLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 350, 0, 530)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -265)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
 
-local amountBox = Instance.new("TextBox", frame)
-amountBox.Position = UDim2.new(0, 160, 0, 35)
-amountBox.Size = UDim2.new(0, 60, 0, 25)
-amountBox.PlaceholderText = "e.g. 50"
-amountBox.Text = ""
-amountBox.Font = Enum.Font.Gotham
-amountBox.TextSize = 16
-amountBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-amountBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-amountBox.ClearTextOnFocus = false
+-- Corner
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
 
-local totalLabel = Instance.new("TextLabel", frame)
-totalLabel.Position = UDim2.new(0, 10, 0, 65)
-totalLabel.Size = UDim2.new(1, -20, 0, 25)
-totalLabel.BackgroundTransparency = 1
-totalLabel.Text = "Fruits: 0 | Points: 0"
-totalLabel.Font = Enum.Font.Gotham
-totalLabel.TextSize = 16
-totalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Text = "🎁 AUTO GIFT SCRIPT v3.5"
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+Title.BackgroundTransparency = 0
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.Parent = MainFrame
 
-local scroll = Instance.new("ScrollingFrame", frame)
-scroll.Position = UDim2.new(0, 0, 0, 95)
-scroll.Size = UDim2.new(1, 0, 1, -95)
-scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-scroll.ScrollBarThickness = 6
-scroll.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-scroll.BorderSizePixel = 0
+-- Status Indicator
+local StatusFrame = Instance.new("Frame")
+StatusFrame.Name = "StatusFrame"
+StatusFrame.Size = UDim2.new(0.9, 0, 0, 40)
+StatusFrame.Position = UDim2.new(0.05, 0, 0, 60)
+StatusFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+StatusFrame.BorderSizePixel = 0
+StatusFrame.Parent = MainFrame
 
-local UIListLayout = Instance.new("UIListLayout", scroll)
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 2)
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 8)
+StatusCorner.Parent = StatusFrame
 
--- Minimize button
-minimizeBtn.MouseButton1Click:Connect(function()
-	minimized = not minimized
-	scroll.Visible = not minimized
-	totalLabel.Visible = not minimized
-	inputLabel.Visible = not minimized
-	amountBox.Visible = not minimized
-	minimizeBtn.Text = minimized and "+" or "-"
-end)
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Text = "STATUS: OFF"
+StatusLabel.Size = UDim2.new(1, 0, 1, 0)
+StatusLabel.Position = UDim2.new(0, 0, 0, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+StatusLabel.Font = Enum.Font.GothamSemibold
+StatusLabel.TextSize = 16
+StatusLabel.Parent = StatusFrame
 
--- Toggle GUI with H key
-userInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.H then
-		panelVisible = not panelVisible
-		gui.Enabled = panelVisible
-	end
-end)
+-- Toggle Button
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Text = "START (G)"
+ToggleButton.Size = UDim2.new(0.9, 0, 0, 45)
+ToggleButton.Position = UDim2.new(0.05, 0, 0, 110)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 16
+ToggleButton.Parent = MainFrame
 
-function getRarity(name)
-	name = name:lower()
-	if name:find("divine") or name:find("grape") or name:find("pepper") then return "Divine"
-	elseif name:find("apple") or name:find("durian") or name:find("pumpkin") or name:find("bamboo") 
-		or name:find("watermelon") or name:find("cranberry") then return "Legendary"
-	elseif name:find("coconut") or name:find("dragon") or name:find("mango") or name:find("cactus")
-		or name:find("eggplant") or name:find("moonglow") or name:find("passion") or name:find("lemon")
-		or name:find("banana") or name:find("blood banana") or name:find("pear") then return "Mythical"
-	elseif name:find("tomato") or name:find("corn") or name:find("daffodil") then return "Rare"
-	elseif name:find("blueberry") or name:find("orange tulip") then return "Uncommon"
-	elseif name:find("carrot") or name:find("strawberry") then return "Common"
-	else return "Common"
-	end
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = ToggleButton
+
+-- Emergency Button
+local EmergencyButton = Instance.new("TextButton")
+EmergencyButton.Name = "EmergencyButton"
+EmergencyButton.Text = "EMERGENCY STOP (P)"
+EmergencyButton.Size = UDim2.new(0.9, 0, 0, 45)
+EmergencyButton.Position = UDim2.new(0.05, 0, 0, 165)
+EmergencyButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+EmergencyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+EmergencyButton.Font = Enum.Font.GothamBold
+EmergencyButton.TextSize = 16
+EmergencyButton.Parent = MainFrame
+
+local EmergencyCorner = Instance.new("UICorner")
+EmergencyCorner.CornerRadius = UDim.new(0, 8)
+EmergencyCorner.Parent = EmergencyButton
+
+-- Progress Section
+local ProgressFrame = Instance.new("Frame")
+ProgressFrame.Name = "ProgressFrame"
+ProgressFrame.Size = UDim2.new(0.9, 0, 0, 80)
+ProgressFrame.Position = UDim2.new(0.05, 0, 0, 220)
+ProgressFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+ProgressFrame.BorderSizePixel = 0
+ProgressFrame.Parent = MainFrame
+
+local ProgressCorner = Instance.new("UICorner")
+ProgressCorner.CornerRadius = UDim.new(0, 8)
+ProgressCorner.Parent = ProgressFrame
+
+local ProgressText = Instance.new("TextLabel")
+ProgressText.Name = "ProgressText"
+ProgressText.Text = "Progress: 0/0"
+ProgressText.Size = UDim2.new(1, 0, 0.5, 0)
+ProgressText.Position = UDim2.new(0, 0, 0, 5)
+ProgressText.BackgroundTransparency = 1
+ProgressText.TextColor3 = Color3.fromRGB(255, 255, 255)
+ProgressText.Font = Enum.Font.GothamSemibold
+ProgressText.TextSize = 14
+ProgressText.Parent = ProgressFrame
+
+local CurrentItemText = Instance.new("TextLabel")
+CurrentItemText.Name = "CurrentItemText"
+CurrentItemText.Text = "Current: None"
+CurrentItemText.Size = UDim2.new(1, 0, 0.5, 0)
+CurrentItemText.Position = UDim2.new(0, 0, 0.5, 0)
+CurrentItemText.BackgroundTransparency = 1
+CurrentItemText.TextColor3 = Color3.fromRGB(200, 200, 255)
+CurrentItemText.Font = Enum.Font.Gotham
+CurrentItemText.TextSize = 12
+CurrentItemText.Parent = ProgressFrame
+
+-- Auto Reset Section (shows count)
+local AutoResetFrame = Instance.new("Frame")
+AutoResetFrame.Name = "AutoResetFrame"
+AutoResetFrame.Size = UDim2.new(0.9, 0, 0, 60)
+AutoResetFrame.Position = UDim2.new(0.05, 0, 0, 310)
+AutoResetFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AutoResetFrame.BorderSizePixel = 0
+AutoResetFrame.Parent = MainFrame
+
+local AutoResetCorner = Instance.new("UICorner")
+AutoResetCorner.CornerRadius = UDim.new(0, 8)
+AutoResetCorner.Parent = AutoResetFrame
+
+local AutoResetText = Instance.new("TextLabel")
+AutoResetText.Name = "AutoResetText"
+AutoResetText.Text = "Auto-Reset: READY (3x)"
+AutoResetText.Size = UDim2.new(0.6, 0, 1, 0)
+AutoResetText.Position = UDim2.new(0.05, 0, 0, 0)
+AutoResetText.BackgroundTransparency = 1
+AutoResetText.TextColor3 = Color3.fromRGB(100, 255, 100)
+AutoResetText.Font = Enum.Font.Gotham
+AutoResetText.TextSize = 12
+AutoResetText.TextXAlignment = Enum.TextXAlignment.Left
+AutoResetText.Parent = AutoResetFrame
+
+local AutoResetToggle = Instance.new("TextButton")
+AutoResetToggle.Name = "AutoResetToggle"
+AutoResetToggle.Text = "ON"
+AutoResetToggle.Size = UDim2.new(0.25, 0, 0.6, 0)
+AutoResetToggle.Position = UDim2.new(0.7, 0, 0.2, 0)
+AutoResetToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+AutoResetToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoResetToggle.Font = Enum.Font.GothamBold
+AutoResetToggle.TextSize = 12
+AutoResetToggle.Parent = AutoResetFrame
+
+local AutoResetToggleCorner = Instance.new("UICorner")
+AutoResetToggleCorner.CornerRadius = UDim.new(0, 6)
+AutoResetToggleCorner.Parent = AutoResetToggle
+
+-- Server Info Section
+local ServerInfoFrame = Instance.new("Frame")
+ServerInfoFrame.Name = "ServerInfoFrame"
+ServerInfoFrame.Size = UDim2.new(0.9, 0, 0, 70)
+ServerInfoFrame.Position = UDim2.new(0.05, 0, 0, 380)
+ServerInfoFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+ServerInfoFrame.BorderSizePixel = 0
+ServerInfoFrame.Parent = MainFrame
+
+local ServerInfoCorner = Instance.new("UICorner")
+ServerInfoCorner.CornerRadius = UDim.new(0, 8)
+ServerInfoCorner.Parent = ServerInfoFrame
+
+-- Server Version Display
+local VersionText = Instance.new("TextLabel")
+VersionText.Name = "VersionText"
+VersionText.Text = "Version: " .. CurrentPlaceVersion
+VersionText.Size = UDim2.new(1, 0, 0.5, 0)
+VersionText.Position = UDim2.new(0, 10, 0, 5)
+VersionText.BackgroundTransparency = 1
+VersionText.TextColor3 = Color3.fromRGB(150, 255, 150)
+VersionText.Font = Enum.Font.Gotham
+VersionText.TextSize = 12
+VersionText.TextXAlignment = Enum.TextXAlignment.Left
+VersionText.Parent = ServerInfoFrame
+
+-- Server Hop Button
+local ServerHopButton = Instance.new("TextButton")
+ServerHopButton.Name = "ServerHopButton"
+ServerHopButton.Text = "SERVER HOP"
+ServerHopButton.Size = UDim2.new(0.8, 0, 0, 30)
+ServerHopButton.Position = UDim2.new(0.1, 0, 0.5, 5)
+ServerHopButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
+ServerHopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ServerHopButton.Font = Enum.Font.GothamBold
+ServerHopButton.TextSize = 14
+ServerHopButton.Parent = ServerInfoFrame
+
+local ServerHopCorner = Instance.new("UICorner")
+ServerHopCorner.CornerRadius = UDim.new(0, 6)
+ServerHopCorner.Parent = ServerHopButton
+
+-- Settings Section
+local SettingsFrame = Instance.new("Frame")
+SettingsFrame.Name = "SettingsFrame"
+SettingsFrame.Size = UDim2.new(0.9, 0, 0, 80)
+SettingsFrame.Position = UDim2.new(0.05, 0, 0, 460)
+SettingsFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+SettingsFrame.BorderSizePixel = 0
+SettingsFrame.Parent = MainFrame
+
+local SettingsCorner = Instance.new("UICorner")
+SettingsCorner.CornerRadius = UDim.new(0, 8)
+SettingsCorner.Parent = SettingsFrame
+
+-- Hold E Time Slider
+local HoldEText = Instance.new("TextLabel")
+HoldEText.Name = "HoldEText"
+HoldEText.Text = "Hold E Time: " .. HOLD_E .. "s"
+HoldEText.Size = UDim2.new(1, 0, 0.5, 0)
+HoldEText.Position = UDim2.new(0, 10, 0, 5)
+HoldEText.BackgroundTransparency = 1
+HoldEText.TextColor3 = Color3.fromRGB(255, 255, 255)
+HoldEText.Font = Enum.Font.Gotham
+HoldEText.TextSize = 12
+HoldEText.TextXAlignment = Enum.TextXAlignment.Left
+HoldEText.Parent = SettingsFrame
+
+local HoldESlider = Instance.new("TextBox")
+HoldESlider.Name = "HoldESlider"
+HoldESlider.Text = tostring(HOLD_E)
+HoldESlider.Size = UDim2.new(0.8, 0, 0, 25)
+HoldESlider.Position = UDim2.new(0.1, 0, 0.5, 5)
+HoldESlider.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+HoldESlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+HoldESlider.Font = Enum.Font.Gotham
+HoldESlider.TextSize = 12
+HoldESlider.PlaceholderText = "Hold time in seconds"
+HoldESlider.Parent = SettingsFrame
+
+local HoldECorner = Instance.new("UICorner")
+HoldECorner.CornerRadius = UDim.new(0, 4)
+HoldECorner.Parent = HoldESlider
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Text = "X"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 10)
+CloseButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 16
+CloseButton.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 15)
+CloseCorner.Parent = CloseButton
+
+-- Minimize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Text = "_"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -70, 0, 10)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 16
+MinimizeButton.Parent = MainFrame
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 15)
+MinimizeCorner.Parent = MinimizeButton
+
+-- Drag functionality
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
-function getMutationBonus(name)
-	local m = 1
-	local b = 0
-	name = name:lower()
-	if name:find("bloodlit") then m = 1.5 end
-	if name:find("golden") then b = b + 2 end
-	if name:find("rainbow") then b = b + 3 end
-	return m, b
+Title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updateInput(input)
+    end
+end)
+
+-- GUI Functions
+local function updateStatus(status, color)
+    StatusLabel.Text = "STATUS: " .. status
+    StatusLabel.TextColor3 = color
 end
 
-amountBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		local input = tonumber(amountBox.Text)
-		if input and input > 0 then
-			targetMoonlitPoints = math.floor(input)
-			print("✅✅✅ Starting gift to reach", targetMoonlitPoints, "points")
+local function updateProgress(current, total, itemName)
+    ProgressText.Text = "Progress: " .. current .. "/" .. total
+    CurrentItemText.Text = "Current: " .. (itemName or "None")
+end
 
-			for _, fruit in ipairs(backpack:GetChildren()) do
-				if totalPoints >= targetMoonlitPoints then break end
+local function updateAutoResetStatus(text, color)
+    AutoResetText.Text = "Auto-Reset: " .. text
+    AutoResetText.TextColor3 = color
+end
 
-				local name = fruit.Name:lower()
-				if name:find("moonlit") then
-					fruit.Parent = player.Character
-					wait(0.4)
-					game:GetService("ReplicatedStorage").RemoteEvent:FireServer("GiftFruit")
+-- Check if item is blacklisted
+local function isBlacklisted(itemName)
+    for _, blacklisted in ipairs(BLACKLIST) do
+        if string.find(itemName:lower(), blacklisted:lower()) then
+            return true
+        end
+    end
+    return false
+end
 
-					local rarity = getRarity(name)
-					local base = rarityPoints[rarity] or 0
-					local mult, extra = getMutationBonus(name)
-					local points = base * mult + extra
+-- Auto Reset Functions (3 times only)
+local function safeResetCharacter()
+    if not player.Character then return false end
+    
+    local success = pcall(function()
+        -- Method 1: Use Humanoid if available
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            -- Try multiple reset methods
+            pcall(function() humanoid.Health = 0 end)
+            pcall(function() humanoid:TakeDamage(1000) end)
+            pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Dead) end)
+            return true
+        end
+        
+        -- Method 2: Remove character parts to force reset
+        for _, v in pairs(player.Character:GetChildren()) do
+            if v:IsA("BasePart") then
+                v:Destroy()
+            end
+        end
+    end)
+    
+    return success
+end
 
-					totalPoints += points
-					giftedCount += 1
-					totalLabel.Text = "Fruits: " .. giftedCount .. " | Points: " .. totalPoints
+local function startAutoReset()
+    if not AUTO_RESET_ENABLED or isAutoResetting then return end
+    
+    isAutoResetting = true
+    resetCount = 0
+    maxResetCount = AUTO_RESET_COUNT
+    
+    warn("[AUTO-RESET] Starting auto-reset for " .. maxResetCount .. " times...")
+    updateAutoResetStatus("ACTIVE (0/" .. maxResetCount .. ")", Color3.fromRGB(255, 200, 50))
+    
+    -- Main auto-reset loop (3 times only)
+    task.spawn(function()
+        while isAutoResetting and resetCount < maxResetCount do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                if safeResetCharacter() then
+                    resetCount = resetCount + 1
+                    
+                    -- Update GUI
+                    updateAutoResetStatus("ACTIVE (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(255, 200, 50))
+                    
+                    -- Log progress
+                    warn("[AUTO-RESET] Reset #" .. resetCount .. " of " .. maxResetCount)
+                    
+                    -- If we've reached the target count, stop
+                    if resetCount >= maxResetCount then
+                        isAutoResetting = false
+                        warn("[AUTO-RESET] Completed! Total resets: " .. resetCount)
+                        updateAutoResetStatus("COMPLETE (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(100, 255, 100))
+                        break
+                    end
+                else
+                    warn("[AUTO-RESET] Failed to reset character")
+                end
+            else
+                warn("[AUTO-RESET] Waiting for character...")
+            end
+            
+            -- Wait between resets
+            task.wait(AUTO_RESET_COOLDOWN)
+        end
+        
+        -- Clean up if loop ended prematurely
+        if isAutoResetting then
+            isAutoResetting = false
+            updateAutoResetStatus("READY (" .. maxResetCount .. "x)", Color3.fromRGB(100, 255, 100))
+        end
+    end)
+    
+    -- Safety timeout (in case something goes wrong)
+    task.delay(15, function()
+        if isAutoResetting then
+            isAutoResetting = false
+            warn("[AUTO-RESET] Safety timeout triggered")
+            updateAutoResetStatus("READY (" .. maxResetCount .. "x)", Color3.fromRGB(100, 255, 100))
+        end
+    end)
+end
 
-					local entry = Instance.new("TextLabel", scroll)
-					entry.Size = UDim2.new(1, -10, 0, 20)
-					entry.BackgroundTransparency = 1
-					entry.Font = Enum.Font.Gotham
-					entry.TextSize = 14
-					entry.TextColor3 = Color3.fromRGB(255, 255, 255)
-					entry.Text = "[" .. rarity .. "] " .. fruit.Name .. " → +" .. points .. " pts"
-					entry.TextXAlignment = Enum.TextXAlignment.Left
+local function stopAutoReset()
+    if isAutoResetting then
+        isAutoResetting = false
+        warn("[AUTO-RESET] Stopped manually. Completed resets: " .. resetCount .. "/" .. maxResetCount)
+        updateAutoResetStatus("STOPPED (" .. resetCount .. "/" .. maxResetCount .. ")", Color3.fromRGB(255, 100, 100))
+    end
+end
 
-					scroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
-					wait(1.5)
-				end
-			end
+local function toggleAutoReset()
+    AUTO_RESET_ENABLED = not AUTO_RESET_ENABLED
+    
+    if AUTO_RESET_ENABLED then
+        AutoResetToggle.Text = "ON"
+        AutoResetToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+        updateAutoResetStatus("READY (" .. AUTO_RESET_COUNT .. "x)", Color3.fromRGB(100, 255, 100))
+        warn("[AUTO-RESET] Feature enabled (will reset " .. AUTO_RESET_COUNT .. " times)")
+    else
+        AutoResetToggle.Text = "OFF"
+        AutoResetToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        updateAutoResetStatus("DISABLED", Color3.fromRGB(255, 100, 100))
+        stopAutoReset()
+        warn("[AUTO-RESET] Feature disabled")
+    end
+end
 
-			local done = Instance.new("TextLabel", scroll)
-			done.Size = UDim2.new(1, -10, 0, 24)
-			done.Text = "✅✅✅ Target points reached!"
-			done.Font = Enum.Font.GothamBold
-			done.TextSize = 16
-			done.TextColor3 = Color3.fromRGB(0, 255, 120)
-			done.BackgroundTransparency = 1
-			scroll.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
-		end
-	end
+-- Button Functions
+ToggleButton.MouseButton1Click:Connect(function()
+    ENABLED = not ENABLED
+    EMERGENCY_STOP = false
+    
+    if ENABLED then
+        updateStatus("RUNNING", Color3.fromRGB(100, 255, 100))
+        ToggleButton.Text = "STOP (G)"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        warn("[AUTO-GIFT] Started")
+    else
+        updateStatus("PAUSED", Color3.fromRGB(255, 200, 50))
+        ToggleButton.Text = "START (G)"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+        warn("[AUTO-GIFT] Paused")
+    end
 end)
+
+EmergencyButton.MouseButton1Click:Connect(function()
+    EMERGENCY_STOP = true
+    ENABLED = false
+    updateStatus("STOPPED", Color3.fromRGB(255, 100, 100))
+    ToggleButton.Text = "START (G)"
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+    warn("[AUTO-GIFT] Emergency stopped")
+end)
+
+AutoResetToggle.MouseButton1Click:Connect(function()
+    toggleAutoReset()
+end)
+
+ServerHopButton.MouseButton1Click:Connect(function()
+    serverHop()
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    return
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    if MainFrame.Size.Y.Offset == 530 then
+        MainFrame:TweenSize(UDim2.new(0, 350, 0, 50), "Out", "Quad", 0.3, true)
+        MinimizeButton.Text = "+"
+    else
+        MainFrame:TweenSize(UDim2.new(0, 350, 0, 530), "Out", "Quad", 0.3, true)
+        MinimizeButton.Text = "_"
+    end
+end)
+
+HoldESlider.FocusLost:Connect(function()
+    local num = tonumber(HoldESlider.Text)
+    if num and num >= 0.1 and num <= 5 then
+        HOLD_E = num
+        HoldEText.Text = "Hold E Time: " .. HOLD_E .. "s"
+        warn("[SETTINGS] Hold E time set to " .. HOLD_E .. " seconds")
+    else
+        HoldESlider.Text = tostring(HOLD_E)
+    end
+end)
+
+-- Keyboard shortcuts
+UIS.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    
+    if input.KeyCode == Enum.KeyCode.G then
+        ToggleButton:Activate()
+    end
+    
+    if input.KeyCode == Enum.KeyCode.P then
+        EmergencyButton:Activate()
+    end
+    
+    if input.KeyCode == Enum.KeyCode.H then
+        ServerHopButton:Activate()
+    end
+    
+    if input.KeyCode == Enum.KeyCode.R then
+        AutoResetToggle:Activate()
+    end
+end)
+
+-- REMOVED: Anti-AFK system (character movement)
+-- No longer sends W/S key events to prevent moving
+
+-- Server functions
+local function checkGameVersion()
+    if not VersionCheckEnabled then return end
+    
+    local currentVersion = game.PlaceVersion
+    if LastKnownVersion and LastKnownVersion ~= currentVersion then
+        VersionText.Text = "Version: " .. currentVersion .. " (CHANGED!)"
+        VersionText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "⚠️ Game Updated",
+            Text = "Game version changed from " .. LastKnownVersion .. " to " .. currentVersion,
+            Duration = 10,
+            Icon = "rbxassetid://6726673526"
+        })
+        
+        warn("[VERSION CHECK] Game version changed! Old: " .. LastKnownVersion .. " | New: " .. currentVersion)
+        warn("[VERSION CHECK] Script might need updating!")
+    else
+        VersionText.Text = "Version: " .. currentVersion
+        VersionText.TextColor3 = Color3.fromRGB(150, 255, 150)
+    end
+    
+    LastKnownVersion = currentVersion
+end
+
+local function getServerInfo()
+    local players = #Players:GetPlayers()
+    VersionText.Text = "Version: " .. CurrentPlaceVersion .. " | Players: " .. players
+end
+
+local function serverHop()
+    if ServerHopCooldown then
+        warn("[SERVER HOP] Cooldown active. Please wait.")
+        return
+    end
+    
+    ServerHopCooldown = true
+    local originalText = ServerHopButton.Text
+    ServerHopButton.Text = "HOPPING..."
+    ServerHopButton.BackgroundColor3 = Color3.fromRGB(120, 80, 200)
+    
+    warn("[SERVER HOP] Attempting to server hop...")
+    
+    local function getRandomServer()
+        local servers = {}
+        local success, result = pcall(function()
+            local response = game:HttpGet("https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?limit=100")
+            return HttpService:JSONDecode(response)
+        end)
+        
+        if success and result and result.data then
+            for _, server in ipairs(result.data) do
+                if server.id ~= JobId and server.playing < server.maxPlayers then
+                    table.insert(servers, server)
+                end
+            end
+            
+            if #servers > 0 then
+                local randomServer = servers[math.random(1, #servers)]
+                return randomServer.id
+            end
+        end
+        return nil
+    end
+    
+    local serverId = getRandomServer()
+    if serverId then
+        warn("[SERVER HOP] Found server. Teleporting...")
+        
+        local teleportSuccess = pcall(function()
+            TeleportService:TeleportToPlaceInstance(PlaceId, serverId, player)
+        end)
+        
+        if not teleportSuccess then
+            warn("[SERVER HOP] Teleport failed. Trying alternative method...")
+            TeleportService:Teleport(PlaceId, player)
+        end
+    else
+        warn("[SERVER HOP] No servers found. Using default teleport...")
+        TeleportService:Teleport(PlaceId, player)
+    end
+    
+    task.delay(5, function()
+        ServerHopCooldown = false
+        ServerHopButton.Text = originalText
+        ServerHopButton.BackgroundColor3 = Color3.fromRGB(80, 120, 200)
+    end)
+end
+
+-- Character validity check
+local function isCharacterValid()
+    if not character or not character:IsDescendantOf(game) then
+        character = player.Character
+        return false
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    
+    return humanoid.Health > 0
+end
+
+-- Main gifting loop
+task.spawn(function()
+    local totalGifted = 0
+    
+    while true do
+        if ENABLED and not EMERGENCY_STOP then
+            -- Don't gift while auto-resetting
+            if isAutoResetting then
+                updateProgress(0, 0, "Waiting for auto-reset...")
+                task.wait(1)
+                continue
+            end
+            
+            character = player.Character or character
+            
+            if SAFETY_CHECK and not isCharacterValid() then
+                updateProgress(0, 0, "Waiting for character...")
+                task.wait(1)
+                continue
+            end
+            
+            -- Check backpack exists
+            if not backpack or not backpack:IsDescendantOf(game) then
+                backpack = player:WaitForChild("Backpack")
+            end
+            
+            -- Get giftable tools
+            local tools = {}
+            for _, item in ipairs(backpack:GetChildren()) do
+                if item:IsA("Tool") and not isBlacklisted(item.Name) then
+                    table.insert(tools, item)
+                end
+            end
+            
+            if #tools == 0 then
+                updateProgress(0, 0, "No giftable items found")
+                task.wait(2)
+            else
+                updateProgress(0, #tools, "Starting gift cycle...")
+                warn("[AUTO-GIFT] Starting gift cycle with " .. #tools .. " items")
+                
+                for i, tool in ipairs(tools) do
+                    if not ENABLED or EMERGENCY_STOP then break end
+                    
+                    -- Check character validity before each gift
+                    if SAFETY_CHECK and not isCharacterValid() then
+                        updateProgress(i-1, #tools, "Character invalid, waiting...")
+                        task.wait(2)
+                        break
+                    end
+                    
+                    updateProgress(i, #tools, tool.Name)
+                    
+                    -- Equip tool with error handling
+                    local equipSuccess = pcall(function()
+                        local humanoid = character:FindFirstChild("Humanoid")
+                        if humanoid then
+                            humanoid:EquipTool(tool)
+                            task.wait(0.2) -- Wait for equip animation
+                        end
+                    end)
+                    
+                    if not equipSuccess then
+                        warn("[AUTO-GIFT] Failed to equip: " .. tool.Name)
+                        updateProgress(i, #tools, "Failed to equip: " .. tool.Name)
+                        task.wait(0.5)
+                        continue
+                    end
+                    
+                    -- Hold E to gift
+                    VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(HOLD_E)
+                    VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                    
+                    totalGifted = totalGifted + 1
+                    warn("[AUTO-GIFT] Gifted: " .. tool.Name .. " (" .. i .. "/" .. #tools .. ")")
+                    
+                    -- Wait cooldown
+                    task.wait(COOLDOWN)
+                end
+                
+                if ENABLED and not EMERGENCY_STOP then
+                    updateProgress(#tools, #tools, "Cycle Complete!")
+                    warn("[AUTO-GIFT] Cycle complete. Total gifted: " .. totalGifted)
+                    task.wait(1) -- Brief pause before next cycle
+                end
+            end
+        else
+            if isAutoResetting then
+                updateProgress(0, 0, "Auto-resetting...")
+            else
+                updateProgress(0, 0, "Idle")
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- Connection to character changes
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    task.wait(1) -- Wait for character to fully load
+    
+    -- Start auto-reset if enabled and not already resetting
+    if AUTO_RESET_ENABLED and not isAutoResetting then
+        task.wait(0.5) -- Small delay
+        startAutoReset()
+    end
+end)
+
+-- Start auto-reset on script load
+task.spawn(function()
+    task.wait(2) -- Wait for everything to load
+    if AUTO_RESET_ENABLED and not isAutoResetting then
+        startAutoReset()
+    end
+end)
+
+-- Periodic version check
+task.spawn(function()
+    task.wait(5) -- Initial delay
+    while true do
+        checkGameVersion()
+        getServerInfo()
+        task.wait(30)
+    end
+end)
+
+-- Initialize
+LastKnownVersion = CurrentPlaceVersion
+updateStatus("OFF", Color3.fromRGB(255, 100, 100))
+updateProgress(0, 0, "Ready")
+updateAutoResetStatus("READY (" .. AUTO_RESET_COUNT .. "x)", Color3.fromRGB(100, 255, 100))
+checkGameVersion()
+getServerInfo()
+
+warn("==========================================")
+warn("[AUTO GIFT] Script loaded successfully!")
+warn("[CONTROLS] G = Toggle Gift | P = Emergency Stop")
+warn("[CONTROLS] H = Server Hop | R = Toggle Auto-Reset")
+warn("[AUTO-RESET] Status: " .. (AUTO_RESET_ENABLED and "ENABLED (3 times)" or "DISABLED"))
+warn("[VERSION] Game Version: " .. CurrentPlaceVersion)
+warn("[NOTE] Anti-AFK movement system has been removed")
+warn("==========================================")
