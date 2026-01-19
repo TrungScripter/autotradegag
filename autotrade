@@ -1,6 +1,6 @@
--- AUTO GIFTING SCRIPT v3.7 with GUI
+--- AUTO GIFTING SCRIPT v3.9 with SCROLLABLE GUI
 -- Toggle: G
--- Auto Force Equip Bat: ON/OFF | Auto Accept Trade: ON/OFF
+-- Auto Force Equip Bat: ON/OFF | Auto Accept Trade: ON/OFF | Auto Jump: ON/OFF
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -22,13 +22,18 @@ local SAFETY_CHECK = true -- Checks if character is alive
 
 -- Auto Equip Bat settings
 local AUTO_EQUIP_BAT_ENABLED = false
-local AUTO_EQUIP_INTERVAL = 5 -- Check every 5 seconds
+local AUTO_EQUIP_INTERVAL = 0.1 -- Check every 0.1 seconds (FAST)
 local lastEquipCheck = 0
 
 -- Auto Trade Accept settings (SIMPLIFIED)
 local AUTO_TRADE_ENABLED = false
 local AUTO_TRADE_INTERVAL = 0.4 
 local lastTradeCheck = 0
+
+-- Auto Jump settings
+local AUTO_JUMP_ENABLED = false
+local AUTO_JUMP_INTERVAL = 600 -- Jump every 600 seconds (10 minutes)
+local lastJumpTime = 0
 
 -- Item blacklist (items that cannot be gifted)
 local BLACKLIST = {
@@ -55,8 +60,8 @@ ScreenGui.Parent = game:GetService("CoreGui")
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 530)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -265)
+MainFrame.Size = UDim2.new(0, 350, 0, 450) -- Fixed height, will scroll
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
@@ -81,14 +86,35 @@ Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
 Title.Parent = MainFrame
 
+-- Scrollable Content Area
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Name = "ScrollFrame"
+ScrollFrame.Size = UDim2.new(1, 0, 1, -50) -- Fill main frame except title
+ScrollFrame.Position = UDim2.new(0, 0, 0, 50)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 700) -- Total content height
+ScrollFrame.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+ScrollFrame.Parent = MainFrame
+
+-- Content container
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, 0, 0, 700)
+ContentFrame.Position = UDim2.new(0, 0, 0, 0)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = ScrollFrame
+
 -- Status Indicator
 local StatusFrame = Instance.new("Frame")
 StatusFrame.Name = "StatusFrame"
 StatusFrame.Size = UDim2.new(0.9, 0, 0, 40)
-StatusFrame.Position = UDim2.new(0.05, 0, 0, 60)
+StatusFrame.Position = UDim2.new(0.05, 0, 0, 10)
 StatusFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 StatusFrame.BorderSizePixel = 0
-StatusFrame.Parent = MainFrame
+StatusFrame.Parent = ContentFrame
 
 local StatusCorner = Instance.new("UICorner")
 StatusCorner.CornerRadius = UDim.new(0, 8)
@@ -110,12 +136,12 @@ local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Text = "START (G)"
 ToggleButton.Size = UDim2.new(0.9, 0, 0, 45)
-ToggleButton.Position = UDim2.new(0.05, 0, 0, 110)
+ToggleButton.Position = UDim2.new(0.05, 0, 0, 60)
 ToggleButton.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 16
-ToggleButton.Parent = MainFrame
+ToggleButton.Parent = ContentFrame
 
 local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 8)
@@ -125,10 +151,10 @@ ToggleCorner.Parent = ToggleButton
 local AutoEquipFrame = Instance.new("Frame")
 AutoEquipFrame.Name = "AutoEquipFrame"
 AutoEquipFrame.Size = UDim2.new(0.9, 0, 0, 60)
-AutoEquipFrame.Position = UDim2.new(0.05, 0, 0, 165)
+AutoEquipFrame.Position = UDim2.new(0.05, 0, 0, 115)
 AutoEquipFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 AutoEquipFrame.BorderSizePixel = 0
-AutoEquipFrame.Parent = MainFrame
+AutoEquipFrame.Parent = ContentFrame
 
 local AutoEquipCorner = Instance.new("UICorner")
 AutoEquipCorner.CornerRadius = UDim.new(0, 8)
@@ -165,10 +191,10 @@ AutoEquipToggleCorner.Parent = AutoEquipToggle
 local AutoTradeFrame = Instance.new("Frame")
 AutoTradeFrame.Name = "AutoTradeFrame"
 AutoTradeFrame.Size = UDim2.new(0.9, 0, 0, 60)
-AutoTradeFrame.Position = UDim2.new(0.05, 0, 0, 235)
+AutoTradeFrame.Position = UDim2.new(0.05, 0, 0, 185)
 AutoTradeFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 AutoTradeFrame.BorderSizePixel = 0
-AutoTradeFrame.Parent = MainFrame
+AutoTradeFrame.Parent = ContentFrame
 
 local AutoTradeCorner = Instance.new("UICorner")
 AutoTradeCorner.CornerRadius = UDim.new(0, 8)
@@ -201,14 +227,54 @@ local AutoTradeToggleCorner = Instance.new("UICorner")
 AutoTradeToggleCorner.CornerRadius = UDim.new(0, 6)
 AutoTradeToggleCorner.Parent = AutoTradeToggle
 
+-- Auto Jump Section
+local AutoJumpFrame = Instance.new("Frame")
+AutoJumpFrame.Name = "AutoJumpFrame"
+AutoJumpFrame.Size = UDim2.new(0.9, 0, 0, 60)
+AutoJumpFrame.Position = UDim2.new(0.05, 0, 0, 255)
+AutoJumpFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AutoJumpFrame.BorderSizePixel = 0
+AutoJumpFrame.Parent = ContentFrame
+
+local AutoJumpCorner = Instance.new("UICorner")
+AutoJumpCorner.CornerRadius = UDim.new(0, 8)
+AutoJumpCorner.Parent = AutoJumpFrame
+
+local AutoJumpText = Instance.new("TextLabel")
+AutoJumpText.Name = "AutoJumpText"
+AutoJumpText.Text = "Auto Jump (10min): OFF"
+AutoJumpText.Size = UDim2.new(0.6, 0, 1, 0)
+AutoJumpText.Position = UDim2.new(0.05, 0, 0, 0)
+AutoJumpText.BackgroundTransparency = 1
+AutoJumpText.TextColor3 = Color3.fromRGB(255, 100, 100)
+AutoJumpText.Font = Enum.Font.Gotham
+AutoJumpText.TextSize = 12
+AutoJumpText.TextXAlignment = Enum.TextXAlignment.Left
+AutoJumpText.Parent = AutoJumpFrame
+
+local AutoJumpToggle = Instance.new("TextButton")
+AutoJumpToggle.Name = "AutoJumpToggle"
+AutoJumpToggle.Text = "OFF"
+AutoJumpToggle.Size = UDim2.new(0.25, 0, 0.6, 0)
+AutoJumpToggle.Position = UDim2.new(0.7, 0, 0.2, 0)
+AutoJumpToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+AutoJumpToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoJumpToggle.Font = Enum.Font.GothamBold
+AutoJumpToggle.TextSize = 12
+AutoJumpToggle.Parent = AutoJumpFrame
+
+local AutoJumpToggleCorner = Instance.new("UICorner")
+AutoJumpToggleCorner.CornerRadius = UDim.new(0, 6)
+AutoJumpToggleCorner.Parent = AutoJumpToggle
+
 -- Progress Section
 local ProgressFrame = Instance.new("Frame")
 ProgressFrame.Name = "ProgressFrame"
 ProgressFrame.Size = UDim2.new(0.9, 0, 0, 80)
-ProgressFrame.Position = UDim2.new(0.05, 0, 0, 305)
+ProgressFrame.Position = UDim2.new(0.05, 0, 0, 325)
 ProgressFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 ProgressFrame.BorderSizePixel = 0
-ProgressFrame.Parent = MainFrame
+ProgressFrame.Parent = ContentFrame
 
 local ProgressCorner = Instance.new("UICorner")
 ProgressCorner.CornerRadius = UDim.new(0, 8)
@@ -240,10 +306,10 @@ CurrentItemText.Parent = ProgressFrame
 local ServerInfoFrame = Instance.new("Frame")
 ServerInfoFrame.Name = "ServerInfoFrame"
 ServerInfoFrame.Size = UDim2.new(0.9, 0, 0, 70)
-ServerInfoFrame.Position = UDim2.new(0.05, 0, 0, 395)
+ServerInfoFrame.Position = UDim2.new(0.05, 0, 0, 415)
 ServerInfoFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 ServerInfoFrame.BorderSizePixel = 0
-ServerInfoFrame.Parent = MainFrame
+ServerInfoFrame.Parent = ContentFrame
 
 local ServerInfoCorner = Instance.new("UICorner")
 ServerInfoCorner.CornerRadius = UDim.new(0, 8)
@@ -282,10 +348,10 @@ ServerHopCorner.Parent = ServerHopButton
 local SettingsFrame = Instance.new("Frame")
 SettingsFrame.Name = "SettingsFrame"
 SettingsFrame.Size = UDim2.new(0.9, 0, 0, 80)
-SettingsFrame.Position = UDim2.new(0.05, 0, 0, 475)
+SettingsFrame.Position = UDim2.new(0.05, 0, 0, 495)
 SettingsFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 SettingsFrame.BorderSizePixel = 0
-SettingsFrame.Parent = MainFrame
+SettingsFrame.Parent = ContentFrame
 
 local SettingsCorner = Instance.new("UICorner")
 SettingsCorner.CornerRadius = UDim.new(0, 8)
@@ -410,7 +476,7 @@ local function isBlacklisted(itemName)
     return false
 end
 
--- Auto equip bat function
+-- Auto equip bat function (FAST 0.1s)
 local function autoEquipBat()
     if not character or not character:FindFirstChild("Humanoid") then
         return false
@@ -450,6 +516,9 @@ local function autoEquipBat()
         local bat = bats[1]
         local success = pcall(function()
             local humanoid = character.Humanoid
+            -- Unequip any current tools first
+            humanoid:UnequipTools()
+            task.wait(0.01) -- Small delay
             humanoid:EquipTool(bat)
         end)
         
@@ -459,16 +528,6 @@ local function autoEquipBat()
             -- Update GUI status
             AutoEquipText.Text = "Auto Equip Bat: EQUIPPED"
             AutoEquipText.TextColor3 = Color3.fromRGB(100, 255, 100)
-            
-            -- Show brief notification
-            task.spawn(function()
-                game:GetService("StarterGui"):SetCore("SendNotification", {
-                    Title = "⚾ Bat Auto-Equipped",
-                    Text = "Equipped " .. bat.Name,
-                    Duration = 2,
-                    Icon = "rbxassetid://6726673526"
-                })
-            end)
             return true
         else
             warn("[AUTO EQUIP] Failed to equip bat")
@@ -480,6 +539,51 @@ local function autoEquipBat()
         AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
         return false
     end
+end
+
+-- Auto jump function
+local function autoJump()
+    if not character or not character:FindFirstChild("Humanoid") then
+        return false
+    end
+    
+    local humanoid = character.Humanoid
+    
+    -- Check if character can jump (not dead, etc.)
+    if humanoid.Health <= 0 then
+        return false
+    end
+    
+    -- Press and release space bar once
+    warn("[AUTO-JUMP] Jumping to prevent AFK...")
+    
+    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+    task.wait(0.1) -- Hold space for 0.1 seconds
+    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+    
+    -- Update GUI status
+    AutoJumpText.Text = "Auto Jump (10min): JUMPED"
+    AutoJumpText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    
+    -- Show notification
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🚀 Auto-Jump",
+        Text = "Jumped to prevent AFK",
+        Duration = 3,
+        Icon = "rbxassetid://6726673526"
+    })
+    
+    warn("[AUTO-JUMP] Jump completed. Next jump in " .. AUTO_JUMP_INTERVAL .. " seconds")
+    
+    -- Reset status after delay
+    task.delay(2, function()
+        if AUTO_JUMP_ENABLED then
+            AutoJumpText.Text = "Auto Jump (10min): ACTIVE"
+            AutoJumpText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        end
+    end)
+    
+    return true
 end
 
 -- SIMPLIFIED Auto accept trade function - ONLY ENTER
@@ -523,7 +627,7 @@ local function toggleAutoEquipBat()
         AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
         AutoEquipText.Text = "Auto Equip Bat: ACTIVE"
         AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
-        warn("[AUTO EQUIP] Auto equip bat enabled")
+        warn("[AUTO EQUIP] Auto equip bat enabled (0.1s interval)")
     else
         AutoEquipToggle.Text = "OFF"
         AutoEquipToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
@@ -552,6 +656,25 @@ local function toggleAutoTrade()
     end
 end
 
+-- Toggle auto jump
+local function toggleAutoJump()
+    AUTO_JUMP_ENABLED = not AUTO_JUMP_ENABLED
+    
+    if AUTO_JUMP_ENABLED then
+        AutoJumpToggle.Text = "ON"
+        AutoJumpToggle.BackgroundColor3 = Color3.fromRGB(70, 180, 90)
+        AutoJumpText.Text = "Auto Jump (10min): ACTIVE"
+        AutoJumpText.TextColor3 = Color3.fromRGB(255, 200, 50)
+        warn("[AUTO-JUMP] Auto jump enabled (every 10 minutes)")
+    else
+        AutoJumpToggle.Text = "OFF"
+        AutoJumpToggle.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+        AutoJumpText.Text = "Auto Jump (10min): OFF"
+        AutoJumpText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warn("[AUTO-JUMP] Auto jump disabled")
+    end
+end
+
 -- Button Functions
 ToggleButton.MouseButton1Click:Connect(function()
     ENABLED = not ENABLED
@@ -577,6 +700,10 @@ AutoTradeToggle.MouseButton1Click:Connect(function()
     toggleAutoTrade()
 end)
 
+AutoJumpToggle.MouseButton1Click:Connect(function()
+    toggleAutoJump()
+end)
+
 ServerHopButton.MouseButton1Click:Connect(function()
     serverHop()
 end)
@@ -587,11 +714,11 @@ CloseButton.MouseButton1Click:Connect(function()
 end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
-    if MainFrame.Size.Y.Offset == 530 then
+    if MainFrame.Size.Y.Offset == 450 then
         MainFrame:TweenSize(UDim2.new(0, 350, 0, 50), "Out", "Quad", 0.3, true)
         MinimizeButton.Text = "+"
     else
-        MainFrame:TweenSize(UDim2.new(0, 350, 0, 530), "Out", "Quad", 0.3, true)
+        MainFrame:TweenSize(UDim2.new(0, 350, 0, 450), "Out", "Quad", 0.3, true)
         MinimizeButton.Text = "_"
     end
 end)
@@ -628,9 +755,14 @@ UIS.InputBegan:Connect(function(input, gp)
         AutoTradeToggle:Activate()
         warn("[AUTO TRADE] T key pressed - Toggled auto accept trade")
     end
+    
+    if input.KeyCode == Enum.KeyCode.J then
+        AutoJumpToggle:Activate()
+        warn("[AUTO-JUMP] J key pressed - Toggled auto jump")
+    end
 end)
 
--- Auto Equip Bat Loop
+-- Auto Equip Bat Loop (FAST 0.1s)
 task.spawn(function()
     while true do
         if AUTO_EQUIP_BAT_ENABLED then
@@ -644,7 +776,32 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(1) -- Check every second
+        task.wait(0.01) -- Check every 0.01 seconds (very fast)
+    end
+end)
+
+-- Auto Jump Loop
+task.spawn(function()
+    task.wait(5) -- Initial delay
+    
+    while true do
+        if AUTO_JUMP_ENABLED then
+            local currentTime = tick()
+            
+            -- Check if it's time to jump
+            if currentTime - lastJumpTime >= AUTO_JUMP_INTERVAL then
+                lastJumpTime = currentTime
+                
+                -- Perform the jump
+                autoJump()
+                
+                -- Small cooldown after jump
+                task.wait(2)
+            end
+        end
+        
+        -- Check every minute to save resources
+        task.wait(60)
     end
 end)
 
@@ -660,7 +817,7 @@ task.spawn(function()
                 autoAcceptTrade()
             end
         end
-        task.wait(0.5) -- Check more frequently
+        task.wait(0.05) -- Check very frequently
     end
 end)
 
@@ -868,7 +1025,7 @@ player.CharacterAdded:Connect(function(newChar)
         AutoEquipText.TextColor3 = Color3.fromRGB(255, 200, 50)
         
         -- Auto equip bat after character loads
-        task.delay(0.1, function()
+        task.delay(0.5, function()
             autoEquipBat()
         end)
     end
@@ -895,9 +1052,10 @@ warn("==========================================")
 warn("[AUTO GIFT] Script loaded successfully!")
 warn("[CONTROLS] G = Toggle Gift")
 warn("[CONTROLS] F = Toggle Auto Equip Bat | T = Toggle Auto Accept Trade")
-warn("[CONTROLS] H = Server Hop")
-warn("[AUTO EQUIP] Will auto-equip bat every " .. AUTO_EQUIP_INTERVAL .. " seconds")
-warn("[AUTO TRADE] Will auto-press Enter every " .. AUTO_TRADE_INTERVAL .. " seconds")
-warn("[SIMPLIFIED] Auto trade now only presses Enter key")
+warn("[CONTROLS] J = Toggle Auto Jump | H = Server Hop")
+warn("[AUTO EQUIP] Will auto-equip bat every 0.1 seconds (FAST)")
+warn("[AUTO TRADE] Will auto-press Enter every 0.4 seconds")
+warn("[AUTO JUMP] Will auto-jump every 10 minutes (AFK prevention)")
+warn("[GUI] Now scrollable! Scroll to see all features")
 warn("[VERSION] Game Version: " .. CurrentPlaceVersion)
 warn("==========================================")
