@@ -71,7 +71,7 @@ UICorner.Parent = MainFrame
 -- Title
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
-Title.Text = "🎁Gift 3.6 Rau Ma"
+Title.Text = "nguyendangtu daubuoi"
 Title.Size = UDim2.new(1, 0, 0, 50)
 Title.Position = UDim2.new(0, 0, 0, 0)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
